@@ -33,10 +33,10 @@ class DashboardController extends Controller
                 'auditorias_em_andamento' => Auditoria::where('status', Auditoria::STATUS_EM_ANDAMENTO)->count(),
             ],
             'reservas_pendentes' => ReservaResource::collection(
-                $reservasPendentes->with(['item', 'user'])->oldest('id')->limit(6)->get()
+                $reservasPendentes->with(['item', 'user'])->oldest('id')->limit(50)->get()
             ),
             'ultimas_movimentacoes' => MovimentacaoResource::collection(
-                Movimentacao::with(['item', 'user'])->latest('id')->limit(8)->get()
+                Movimentacao::with(['item', 'user'])->latest('id')->limit(25)->get()
             ),
         ]]);
     }

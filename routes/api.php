@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuditoriaController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AuvoController;
 use App\Http\Controllers\CatalogoController;
 use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\DashboardController;
@@ -28,9 +29,15 @@ Route::prefix('auth')->middleware('throttle:auth')->group(function () {
     Route::post('reset-password', [AuthController::class, 'resetPassword']);
 });
 
+// Webhook de integração com o Auvo
+Route::post('webhooks/auvo', [AuvoController::class, 'webhook']);
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::get('auth/me', [AuthController::class, 'me']);
+
+    // Integração Auvo: busca de tarefa por ID
+    Route::get('auvo/tarefas/{taskId}', [AuvoController::class, 'buscarTarefa'])->whereNumber('taskId');
 
     Route::get('dashboard', DashboardController::class);
 
