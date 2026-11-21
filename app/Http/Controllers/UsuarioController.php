@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\Role;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Services\JwtService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Validation\Rule;
@@ -58,8 +59,8 @@ class UsuarioController extends Controller
 
         $usuario->update($dados);
 
-        if (($dados['ativo'] ?? true) === false) {
-            $usuario->tokens()->delete();
+        if (($dados['ativo'] ?? true) === false || isset($dados['password'])) {
+            app(JwtService::class)->revokeAllForUser($usuario);
         }
 
         return new UserResource($usuario);

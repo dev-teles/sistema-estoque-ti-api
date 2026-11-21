@@ -7,7 +7,6 @@ use App\Models\Item;
 use App\Models\Movimentacao;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
 use LogicException;
 use Tests\TestCase;
 
@@ -46,10 +45,16 @@ class EstoqueTest extends TestCase
         $user = $this->operador();
 
         $token = $this->postJson('/api/auth/login', ['email' => $user->email, 'password' => 'password'])
-            ->assertOk()->assertJsonStructure(['token', 'user' => ['id', 'role', 'role_label']])->json('token');
+            ->assertOk()->assertJsonStructure(['token', 'token_type', 'expires_in', 'user' => ['id', 'role', 'role_label']])->json('token');
+
+        $this->assertSame(2, substr_count($token, '.'));
 
         $this->withToken($token)->getJson('/api/auth/me')
             ->assertOk()->assertJsonPath('data.role', 'operador');
+
+        $this->withToken($token)->postJson('/api/auth/logout')->assertOk();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/auth/me')->assertUnauthorized();
     }
 
     public function test_login_invalido_e_registado(): void
@@ -60,7 +65,7 @@ class EstoqueTest extends TestCase
 
     public function test_entrada_e_saida_atualizam_saldo_e_livro_razao(): void
     {
-        Sanctum::actingAs($this->operador());
+        $this->actingAs($this->operador(), 'jwt');
 
         $this->postJson('/api/estoque/entrada', ['item_id' => $this->item->id, 'quantidade' => 10])
             ->assertCreated()->assertJsonPath('data.saldo_fisico_apos', 10);
@@ -78,7 +83,7 @@ class EstoqueTest extends TestCase
 
     public function test_saida_maior_que_saldo_e_rejeitada(): void
     {
-        Sanctum::actingAs($this->operador());
+        $this->actingAs($this->operador(), 'jwt');
         $this->postJson('/api/estoque/entrada', ['item_id' => $this->item->id, 'quantidade' => 2]);
 
         $this->postJson('/api/estoque/saida', ['item_id' => $this->item->id, 'quantidade' => 3, 'motivo' => 'consumo'])
@@ -89,7 +94,7 @@ class EstoqueTest extends TestCase
 
     public function test_fluxo_de_reserva_confirmar_e_cancelar(): void
     {
-        Sanctum::actingAs($this->operador());
+        $this->actingAs($this->operador(), 'jwt');
         $this->postJson('/api/estoque/entrada', ['item_id' => $this->item->id, 'quantidade' => 10]);
 
         $r1 = $this->postJson('/api/reservas', ['item_id' => $this->item->id, 'quantidade' => 4, 'solicitante' => 'Ana'])
@@ -112,13 +117,13 @@ class EstoqueTest extends TestCase
 
     public function test_estorno_reverte_uma_unica_vez_e_exige_gestor(): void
     {
-        Sanctum::actingAs($this->operador());
+        $this->actingAs($this->operador(), 'jwt');
         $mov = $this->postJson('/api/estoque/entrada', ['item_id' => $this->item->id, 'quantidade' => 10])->json('data.id');
 
         $payload = ['movimentacao_id' => $mov, 'justificativa' => 'Lançamento em duplicado na NF'];
         $this->postJson('/api/estoque/estorno', $payload)->assertForbidden();
 
-        Sanctum::actingAs($this->gestor());
+        $this->actingAs($this->gestor(), 'jwt');
         $this->postJson('/api/estoque/estorno', $payload)->assertCreated()->assertJsonPath('data.delta_fisico', -10);
         $this->postJson('/api/estoque/estorno', $payload)->assertStatus(422);
 
@@ -128,11 +133,11 @@ class EstoqueTest extends TestCase
 
     public function test_rbac_operador_nao_cria_catalogo(): void
     {
-        Sanctum::actingAs($this->operador());
+        $this->actingAs($this->operador(), 'jwt');
         $this->postJson('/api/catalogo', ['nome' => 'X', 'categoria_id' => $this->categoria->id, 'quantidade_minima' => 1])
             ->assertForbidden();
 
-        Sanctum::actingAs($this->gestor());
+        $this->actingAs($this->gestor(), 'jwt');
         $this->postJson('/api/catalogo', ['nome' => 'Teclado ABNT2', 'categoria_id' => $this->categoria->id, 'quantidade_minima' => 1, 'lead_time' => 3])
             ->assertCreated()->assertJsonPath('data.lead_time_dias', 3)->assertJsonPath('data.saldo_fisico', 0);
     }
@@ -140,7 +145,7 @@ class EstoqueTest extends TestCase
     public function test_auditoria_bloqueia_saidas_e_gera_ajustes(): void
     {
         $gestor = $this->gestor();
-        Sanctum::actingAs($gestor);
+        $this->actingAs($gestor, 'jwt');
         $this->postJson('/api/estoque/entrada', ['item_id' => $this->item->id, 'quantidade' => 10]);
 
         $auditoria = $this->postJson('/api/auditorias/iniciar', ['categoria_id' => $this->categoria->id])
@@ -150,13 +155,13 @@ class EstoqueTest extends TestCase
             ->assertStatus(423);
 
         // Contagem cega: o detalhe não expõe o saldo do sistema.
-        Sanctum::actingAs($this->operador());
+        $this->actingAs($this->operador(), 'jwt');
         $this->getJson("/api/auditorias/{$auditoria}")->assertOk()->assertJsonMissingPath('data.itens.0.saldo_sistema');
         $this->postJson("/api/auditorias/{$auditoria}/contagem", [
             'contagens' => [['item_id' => $this->item->id, 'quantidade_contada' => 8]],
         ])->assertOk();
 
-        Sanctum::actingAs($gestor);
+        $this->actingAs($gestor, 'jwt');
         $this->getJson("/api/auditorias/{$auditoria}/reconciliacao")->assertJsonPath('data.itens.0.diferenca', -2);
         $this->postJson("/api/auditorias/{$auditoria}/finalizar")->assertOk()->assertJsonPath('ajustes.0.diferenca', -2);
 
@@ -167,7 +172,7 @@ class EstoqueTest extends TestCase
 
     public function test_movimentacoes_sao_imutaveis(): void
     {
-        Sanctum::actingAs($this->operador());
+        $this->actingAs($this->operador(), 'jwt');
         $id = $this->postJson('/api/estoque/entrada', ['item_id' => $this->item->id, 'quantidade' => 5])->json('data.id');
         $mov = Movimentacao::findOrFail($id);
 
@@ -177,7 +182,7 @@ class EstoqueTest extends TestCase
 
     public function test_relatorios_mensal_e_criticos(): void
     {
-        Sanctum::actingAs($this->gestor());
+        $this->actingAs($this->gestor(), 'jwt');
         $this->postJson('/api/estoque/entrada', ['item_id' => $this->item->id, 'quantidade' => 10]);
         $this->postJson('/api/estoque/saida', ['item_id' => $this->item->id, 'quantidade' => 6, 'motivo' => 'consumo']);
         $this->postJson('/api/estoque/saida', ['item_id' => $this->item->id, 'quantidade' => 1, 'motivo' => 'dano', 'justificativa' => 'Caiu']);

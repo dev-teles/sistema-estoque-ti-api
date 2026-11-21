@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Resources\UserResource;
 use App\Models\LogAcesso;
 use App\Models\User;
+use App\Services\JwtService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -15,12 +16,13 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    public function __construct(private readonly JwtService $jwt) {}
+
     public function login(Request $request): JsonResponse
     {
         $dados = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
-            'device_name' => ['nullable', 'string', 'max:100'],
         ]);
 
         $user = User::where('email', $dados['email'])->first();
@@ -38,18 +40,19 @@ class AuthController extends Controller
         $user->forceFill(['ultimo_login_em' => now()])->save();
         LogAcesso::registrar('login', $user);
 
-        $token = $user->createToken($dados['device_name'] ?? 'spa')->plainTextToken;
+        $jwt = $this->jwt->issue($user);
 
         return response()->json([
-            'token' => $token,
+            'token' => $jwt['token'],
             'token_type' => 'Bearer',
+            'expires_in' => $jwt['expires_in'],
             'user' => new UserResource($user),
         ]);
     }
 
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()?->delete();
+        $this->jwt->revokeToken($request->bearerToken());
         LogAcesso::registrar('logout', $request->user());
 
         return response()->json(['message' => 'Sessão terminada.']);
@@ -82,7 +85,7 @@ class AuthController extends Controller
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (User $user, string $password) {
                 $user->forceFill(['password' => $password, 'remember_token' => Str::random(60)])->save();
-                $user->tokens()->delete(); // invalida sessões anteriores
+                $this->jwt->revokeAllForUser($user);
             }
         );
 
