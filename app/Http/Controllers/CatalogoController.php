@@ -20,10 +20,10 @@ class CatalogoController extends Controller
             $query->withTrashed();
         }
         if ($busca = $request->query('search')) {
-            $query->where('nome', 'like', "%{$busca}%");
+            $query->where('nome', 'like', $this->termoLike((string) $busca));
         }
         if ($categoria = $request->query('categoria_id')) {
-            $query->where('categoria_id', $categoria);
+            $query->where('categoria_id', (int) $categoria);
         }
 
         return ItemResource::collection($query->paginate($this->perPage($request)));

@@ -20,7 +20,8 @@ class UsuarioController extends Controller
         $query = User::orderBy('name');
 
         if ($busca = $request->query('search')) {
-            $query->where(fn ($q) => $q->where('name', 'like', "%{$busca}%")->orWhere('email', 'like', "%{$busca}%"));
+            $like = $this->termoLike((string) $busca);
+            $query->where(fn ($q) => $q->where('name', 'like', $like)->orWhere('email', 'like', $like));
         }
 
         return UserResource::collection($query->paginate($this->perPage($request)));

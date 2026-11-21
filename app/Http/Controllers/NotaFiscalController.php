@@ -20,10 +20,10 @@ class NotaFiscalController extends Controller
         $query = NotaFiscal::with(['fornecedor', 'user'])->withCount('movimentacoes')->latest('id');
 
         if ($busca = $request->query('search')) {
-            $query->where('numero', 'like', "%{$busca}%");
+            $query->where('numero', 'like', $this->termoLike((string) $busca));
         }
         if ($fornecedor = $request->query('fornecedor_id')) {
-            $query->where('fornecedor_id', $fornecedor);
+            $query->where('fornecedor_id', (int) $fornecedor);
         }
 
         return NotaFiscalResource::collection($query->paginate($this->perPage($request)));

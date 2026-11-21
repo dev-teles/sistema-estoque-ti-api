@@ -29,10 +29,10 @@ class EstoqueController extends Controller
         $query = Estoque::ativos()->with('item.categoria');
 
         if ($busca = $request->query('search')) {
-            $query->where('itens.nome', 'like', "%{$busca}%");
+            $query->where('itens.nome', 'like', $this->termoLike((string) $busca));
         }
         if ($categoria = $request->query('categoria_id')) {
-            $query->where('itens.categoria_id', $categoria);
+            $query->where('itens.categoria_id', (int) $categoria);
         }
         if ($status = $request->query('status')) {
             $query->whereRaw(Estoque::statusSql().' = ?', [$status]);

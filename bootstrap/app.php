@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\BotProtection;
 use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\SanitizeInput;
 use App\Models\LogAcesso;
 use Illuminate\Database\Eloquent\MassAssignmentException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -22,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->api(prepend: [
             BotProtection::class,
+            SanitizeInput::class,
         ]);
 
         $middleware->alias([

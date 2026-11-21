@@ -14,6 +14,11 @@ class MovimentacaoController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $request->validate([
+            'item_id' => ['nullable', 'integer', 'min:1'],
+            'user_id' => ['nullable', 'integer', 'min:1'],
+            'reserva_id' => ['nullable', 'integer', 'min:1'],
+            'nota_fiscal_id' => ['nullable', 'integer', 'min:1'],
+            'auditoria_id' => ['nullable', 'integer', 'min:1'],
             'tipo' => ['nullable', Rule::in(Movimentacao::TIPOS)],
             'data_inicio' => ['nullable', 'date'],
             'data_fim' => ['nullable', 'date', 'after_or_equal:data_inicio'],

@@ -6,12 +6,17 @@ use App\Models\LogAcesso;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Validation\Rule;
 
 /** Logs de segurança (apenas Admin Global). */
 class LogAcessoController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
+        $request->validate([
+            'evento' => ['nullable', Rule::in(['login', 'login_falhou', 'logout', 'acesso_negado'])],
+        ]);
+
         $query = LogAcesso::with('user:id,name')->latest('id');
 
         if ($evento = $request->query('evento')) {

@@ -27,8 +27,9 @@ class ReservaController extends Controller
             $query->where('status', $status);
         }
         if ($busca = $request->query('search')) {
-            $query->where(fn ($q) => $q->where('solicitante', 'like', "%{$busca}%")
-                ->orWhereHas('item', fn ($i) => $i->where('nome', 'like', "%{$busca}%")));
+            $like = $this->termoLike((string) $busca);
+            $query->where(fn ($q) => $q->where('solicitante', 'like', $like)
+                ->orWhereHas('item', fn ($i) => $i->where('nome', 'like', $like)));
         }
 
         $status === Reserva::STATUS_RESERVADO ? $query->oldest('id') : $query->latest('id');

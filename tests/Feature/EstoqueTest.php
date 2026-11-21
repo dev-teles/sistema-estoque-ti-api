@@ -386,4 +386,64 @@ class EstoqueTest extends TestCase
             'password' => 'errada',
         ])->assertStatus(429);
     }
+
+    public function test_queries_parametrizadas_e_sanitizacao_xss_bloqueiam_injecao(): void
+    {
+        $gestor = $this->gestor();
+        $this->actingAs($gestor, 'jwt');
+
+        // 1. Tentativa de XSS no cadastro de item: tags <script>, event handlers e javascript: são removidos
+        $resp = $this->postJson('/api/catalogo', [
+            'nome' => 'Monitor 24 <script>alert("xss")</script> onload=alert(1)',
+            'descricao' => '<img src=x onerror=alert(1)>javascript:evil() Full HD',
+            'categoria_id' => $this->categoria->id,
+            'quantidade_minima' => 2,
+        ])->assertCreated();
+
+        $resp->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('X-Frame-Options', 'DENY');
+
+        $nomeSalvo = (string) $resp->json('data.nome');
+        $descSalva = (string) $resp->json('data.descricao');
+        $this->assertStringNotContainsString('<script>', $nomeSalvo);
+        $this->assertStringNotContainsString('onload=', $nomeSalvo);
+        $this->assertStringNotContainsString('<img', $descSalva);
+        $this->assertStringNotContainsString('onerror=', $descSalva);
+        $this->assertStringNotContainsString('javascript:', $descSalva);
+        $this->assertStringContainsString('Monitor 24', $nomeSalvo);
+
+        // 2. Tentativa de SQL Injection e Wildcard Injection (%) em busca parametrizada LIKE
+        $this->getJson('/api/catalogo?search='.urlencode("' OR 1=1 --"))
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        // Buscar literal "%" não deve retornar todos os itens (curinga escapado via addcslashes)
+        $this->getJson('/api/catalogo?search='.urlencode('%'))
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    }
+
+    public function test_validacao_de_input_e_bloqueio_de_uploads_indevidos(): void
+    {
+        $gestor = $this->gestor();
+        $this->actingAs($gestor, 'jwt');
+
+        // 1. Tentativa de upload de arquivo executável/script em rota da API é bloqueada com 422
+        $arquivoMalicioso = \Illuminate\Http\UploadedFile::fake()->create('shell.php', 10, 'application/x-php');
+        $this->post('/api/catalogo', [
+            'nome' => 'Item com anexo indevido',
+            'categoria_id' => $this->categoria->id,
+            'quantidade_minima' => 1,
+            'arquivo' => $arquivoMalicioso,
+        ], ['Accept' => 'application/json'])->assertStatus(422)
+            ->assertJsonPath('message', 'Upload de ficheiros não é permitido nesta rota.');
+
+        // 2. Validação de input: CNPJ com dígitos repetidos e telefone com caracteres inválidos são rejeitados
+        $this->postJson('/api/fornecedores', [
+            'nome' => 'Fornecedor Inválido',
+            'cnpj' => '11.111.111/1111-11',
+            'telefone' => 'abc-invalido',
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['cnpj', 'telefone']);
+    }
 }

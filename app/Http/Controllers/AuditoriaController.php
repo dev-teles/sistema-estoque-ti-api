@@ -22,6 +22,10 @@ class AuditoriaController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $request->validate([
+            'status' => ['nullable', Rule::in([Auditoria::STATUS_EM_ANDAMENTO, Auditoria::STATUS_FINALIZADA])],
+        ]);
+
         $query = Auditoria::with(['categoria:id,nome', 'iniciador:id,name', 'finalizador:id,name'])
             ->withCount('contagens')
             ->latest('id');

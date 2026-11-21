@@ -30,12 +30,21 @@ class RelatorioController extends Controller
         $agregados = Movimentacao::query()
             ->whereBetween('created_at', [$inicio, $fim])
             ->groupBy('item_id')
-            ->selectRaw("item_id,
-                SUM(CASE WHEN tipo = 'entrada' THEN delta_fisico ELSE 0 END) AS entradas,
-                SUM(CASE WHEN tipo = 'saida' AND (motivo IS NULL OR motivo <> 'dano') THEN -delta_fisico ELSE 0 END) AS consumo,
-                SUM(CASE WHEN tipo = 'saida' AND motivo = 'dano' THEN -delta_fisico ELSE 0 END) AS baixas_dano,
-                SUM(CASE WHEN tipo IN ('estorno', 'ajuste_auditoria') THEN delta_fisico ELSE 0 END) AS ajustes,
-                SUM(CASE WHEN tipo = 'entrada' THEN quantidade * COALESCE(valor_unitario, 0) ELSE 0 END) AS valor_entradas")
+            ->selectRaw(
+                'item_id,
+                SUM(CASE WHEN tipo = ? THEN delta_fisico ELSE 0 END) AS entradas,
+                SUM(CASE WHEN tipo = ? AND (motivo IS NULL OR motivo <> ?) THEN -delta_fisico ELSE 0 END) AS consumo,
+                SUM(CASE WHEN tipo = ? AND motivo = ? THEN -delta_fisico ELSE 0 END) AS baixas_dano,
+                SUM(CASE WHEN tipo IN (?, ?) THEN delta_fisico ELSE 0 END) AS ajustes,
+                SUM(CASE WHEN tipo = ? THEN quantidade * COALESCE(valor_unitario, 0) ELSE 0 END) AS valor_entradas',
+                [
+                    Movimentacao::TIPO_ENTRADA,
+                    Movimentacao::TIPO_SAIDA, 'dano',
+                    Movimentacao::TIPO_SAIDA, 'dano',
+                    Movimentacao::TIPO_ESTORNO, Movimentacao::TIPO_AJUSTE_AUDITORIA,
+                    Movimentacao::TIPO_ENTRADA,
+                ]
+            )
             ->get()->keyBy('item_id');
 
         $linhas = Item::withTrashed()->with('categoria:id,nome')->orderBy('nome')->get()

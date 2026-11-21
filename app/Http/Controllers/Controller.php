@@ -20,4 +20,10 @@ abstract class Controller
     {
         return max(1, min(100, (int) $request->query('per_page', $padrao)));
     }
+
+    /** Escapa curingas SQL (% e _) para uso seguro em queries parametrizadas com LIKE. */
+    protected function termoLike(string $termo): string
+    {
+        return '%'.addcslashes(trim($termo), '%_\\').'%';
+    }
 }
