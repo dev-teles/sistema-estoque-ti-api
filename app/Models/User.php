@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Enums\Role;
+use App\Models\Concerns\HasRowLevelSecurity;
 use Database\Factories\UserFactory;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -12,7 +14,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, HasRowLevelSecurity, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -51,6 +53,20 @@ class User extends Authenticatable
             'role' => Role::class,
             'ativo' => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(fn () => static::rlsRequireRole('admin'));
+        static::deleting(fn () => static::rlsRequireRole('admin'));
+        static::updating(function (User $target) {
+            $actor = static::rlsUser();
+            if ($actor && ! $actor->isAdmin()) {
+                if ((int) $target->id !== (int) $actor->id || $target->isDirty(['role', 'ativo'])) {
+                    throw new AuthorizationException('RLS: apenas admin pode alterar outros utilizadores ou privilégios.');
+                }
+            }
+        });
     }
 
     public function isAdmin(): bool

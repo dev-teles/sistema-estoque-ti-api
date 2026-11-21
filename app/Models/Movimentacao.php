@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasRowLevelSecurity;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -13,6 +15,8 @@ use LogicException;
  */
 class Movimentacao extends Model
 {
+    use HasRowLevelSecurity;
+
     public const UPDATED_AT = null;
 
     public const TIPO_ENTRADA = 'entrada';
@@ -48,6 +52,17 @@ class Movimentacao extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (Movimentacao $mov) {
+            if ($user = static::rlsUser()) {
+                if ($mov->user_id && (int) $mov->user_id !== (int) $user->id) {
+                    throw new AuthorizationException('RLS: user_id da movimentação deve pertencer ao utilizador autenticado.');
+                }
+                $mov->user_id = $user->id;
+                if ($mov->tipo === self::TIPO_ESTORNO) {
+                    static::rlsRequireRole('admin', 'gestor');
+                }
+            }
+        });
         static::updating(fn () => throw new LogicException('Livro-razão imutável: movimentações não podem ser alteradas.'));
         static::deleting(fn () => throw new LogicException('Livro-razão imutável: movimentações não podem ser excluídas.'));
     }

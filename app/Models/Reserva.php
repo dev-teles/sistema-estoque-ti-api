@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasRowLevelSecurity;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Reserva extends Model
 {
+    use HasRowLevelSecurity;
+
     public const STATUS_RESERVADO = 'reservado';
     public const STATUS_ENTREGUE = 'entregue';
     public const STATUS_CANCELADO = 'cancelado';
@@ -21,6 +25,18 @@ class Reserva extends Model
         'quantidade' => 'integer',
         'finalizada_em' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Reserva $reserva) {
+            if ($user = static::rlsUser()) {
+                if ($reserva->user_id && (int) $reserva->user_id !== (int) $user->id) {
+                    throw new AuthorizationException('RLS: user_id da reserva deve pertencer ao utilizador autenticado.');
+                }
+                $reserva->user_id = $user->id;
+            }
+        });
+    }
 
     public function item(): BelongsTo
     {

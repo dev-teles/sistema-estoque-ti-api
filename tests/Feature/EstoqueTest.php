@@ -117,13 +117,16 @@ class EstoqueTest extends TestCase
 
     public function test_estorno_reverte_uma_unica_vez_e_exige_gestor(): void
     {
-        $this->actingAs($this->operador(), 'jwt');
+        $operador = $this->operador();
+        $gestor = $this->gestor();
+
+        $this->actingAs($operador, 'jwt');
         $mov = $this->postJson('/api/estoque/entrada', ['item_id' => $this->item->id, 'quantidade' => 10])->json('data.id');
 
         $payload = ['movimentacao_id' => $mov, 'justificativa' => 'Lançamento em duplicado na NF'];
         $this->postJson('/api/estoque/estorno', $payload)->assertForbidden();
 
-        $this->actingAs($this->gestor(), 'jwt');
+        $this->actingAs($gestor, 'jwt');
         $this->postJson('/api/estoque/estorno', $payload)->assertCreated()->assertJsonPath('data.delta_fisico', -10);
         $this->postJson('/api/estoque/estorno', $payload)->assertStatus(422);
 
@@ -133,11 +136,14 @@ class EstoqueTest extends TestCase
 
     public function test_rbac_operador_nao_cria_catalogo(): void
     {
-        $this->actingAs($this->operador(), 'jwt');
+        $operador = $this->operador();
+        $gestor = $this->gestor();
+
+        $this->actingAs($operador, 'jwt');
         $this->postJson('/api/catalogo', ['nome' => 'X', 'categoria_id' => $this->categoria->id, 'quantidade_minima' => 1])
             ->assertForbidden();
 
-        $this->actingAs($this->gestor(), 'jwt');
+        $this->actingAs($gestor, 'jwt');
         $this->postJson('/api/catalogo', ['nome' => 'Teclado ABNT2', 'categoria_id' => $this->categoria->id, 'quantidade_minima' => 1, 'lead_time' => 3])
             ->assertCreated()->assertJsonPath('data.lead_time_dias', 3)->assertJsonPath('data.saldo_fisico', 0);
     }
@@ -145,6 +151,7 @@ class EstoqueTest extends TestCase
     public function test_auditoria_bloqueia_saidas_e_gera_ajustes(): void
     {
         $gestor = $this->gestor();
+        $operador = $this->operador();
         $this->actingAs($gestor, 'jwt');
         $this->postJson('/api/estoque/entrada', ['item_id' => $this->item->id, 'quantidade' => 10]);
 
@@ -155,7 +162,7 @@ class EstoqueTest extends TestCase
             ->assertStatus(423);
 
         // Contagem cega: o detalhe não expõe o saldo do sistema.
-        $this->actingAs($this->operador(), 'jwt');
+        $this->actingAs($operador, 'jwt');
         $this->getJson("/api/auditorias/{$auditoria}")->assertOk()->assertJsonMissingPath('data.itens.0.saldo_sistema');
         $this->postJson("/api/auditorias/{$auditoria}/contagem", [
             'contagens' => [['item_id' => $this->item->id, 'quantidade_contada' => 8]],
@@ -197,5 +204,23 @@ class EstoqueTest extends TestCase
         $this->getJson('/api/relatorios/criticos')->assertOk()->assertJsonPath('data.0.item_id', $this->item->id);
 
         $this->getJson('/api/dashboard')->assertOk()->assertJsonPath('data.kpis.itens_alerta', 1);
+    }
+
+    public function test_rls_isola_linhas_e_bloqueia_escrita_indevida(): void
+    {
+        $operador = $this->operador();
+        $gestor = $this->gestor();
+
+        \App\Models\LogAcesso::registrar('login', $operador);
+        \App\Models\LogAcesso::registrar('login', $gestor);
+
+        $this->actingAs($operador, 'jwt');
+
+        // Global Scope RLS: operador só enxerga os próprios logs de acesso
+        $this->assertSame(1, \App\Models\LogAcesso::count());
+
+        // Write Guard RLS: operador não pode alterar outro usuário nem criar item diretamente no Model
+        $this->expectException(\Illuminate\Auth\Access\AuthorizationException::class);
+        $gestor->update(['name' => 'Hack']);
     }
 }

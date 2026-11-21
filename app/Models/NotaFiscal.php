@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasRowLevelSecurity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class NotaFiscal extends Model
 {
+    use HasRowLevelSecurity;
+
     protected $table = 'notas_fiscais';
 
     protected $fillable = [
@@ -19,6 +22,13 @@ class NotaFiscal extends Model
         'data_emissao' => 'date:Y-m-d',
         'valor_total' => 'decimal:2',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(fn () => static::rlsRequireRole('admin', 'gestor'));
+        static::updating(fn () => static::rlsRequireRole('admin', 'gestor'));
+        static::deleting(fn () => static::rlsRequireRole('admin', 'gestor'));
+    }
 
     public function fornecedor(): BelongsTo
     {

@@ -34,14 +34,18 @@ class AuvoService
     public function getToken(): string
     {
         return Cache::remember('auvo_access_token', now()->addMinutes(25), function () {
-            $response = $this->http()->get("{$this->baseUrl}/login/", [
-                'apiKey' => $this->apiKey,
-                'apiToken' => $this->apiToken,
-            ]);
+            try {
+                $response = $this->http()->get("{$this->baseUrl}/login/", [
+                    'apiKey' => $this->apiKey,
+                    'apiToken' => $this->apiToken,
+                ]);
+            } catch (\Throwable) {
+                throw new RegraNegocioException('Serviço de integração externa indisponível no momento.');
+            }
 
             $token = $response->json('result.accessToken');
             if ($response->failed() || ! $token) {
-                throw new RegraNegocioException('Falha ao autenticar na API do Auvo. Verifique AUVO_API_KEY e AUVO_API_TOKEN.');
+                throw new RegraNegocioException('Falha ao autenticar no serviço externo.');
             }
 
             return (string) $token;
@@ -74,10 +78,14 @@ class AuvoService
 
         $token = $this->getToken();
 
-        // 1. Tenta primeiro buscar como Chamado / Ticket (/tickets/{id}) do Auvo Desk
-        $ticketResp = $this->http()
-            ->withToken($token)
-            ->get("{$this->baseUrl}/tickets/{$id}");
+        try {
+            // 1. Tenta primeiro buscar como Chamado / Ticket (/tickets/{id}) do Auvo Desk
+            $ticketResp = $this->http()
+                ->withToken($token)
+                ->get("{$this->baseUrl}/tickets/{$id}");
+        } catch (\Throwable) {
+            throw new RegraNegocioException('Serviço de integração externa indisponível no momento.');
+        }
 
         if ($ticketResp->successful() && $ticketResp->json('result.id')) {
             $t = $ticketResp->json('result');
@@ -95,9 +103,13 @@ class AuvoService
         }
 
         // 2. Fallback: busca como Tarefa (/tasks/{id})
-        $taskResp = $this->http()
-            ->withToken($token)
-            ->get("{$this->baseUrl}/tasks/{$id}");
+        try {
+            $taskResp = $this->http()
+                ->withToken($token)
+                ->get("{$this->baseUrl}/tasks/{$id}");
+        } catch (\Throwable) {
+            throw new RegraNegocioException('Serviço de integração externa indisponível no momento.');
+        }
 
         if ($taskResp->successful() && $taskResp->json('result.taskID')) {
             $r = $taskResp->json('result');

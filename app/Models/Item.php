@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasRowLevelSecurity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 /** Item do catálogo de TI (o "dicionário" do que pode existir no estoque). */
 class Item extends Model
 {
-    use SoftDeletes;
+    use HasRowLevelSecurity, SoftDeletes;
 
     protected $table = 'itens';
 
@@ -27,6 +28,10 @@ class Item extends Model
 
     protected static function booted(): void
     {
+        static::creating(fn () => static::rlsRequireRole('admin', 'gestor'));
+        static::updating(fn () => static::rlsRequireRole('admin', 'gestor'));
+        static::deleting(fn () => static::rlsRequireRole('admin', 'gestor'));
+
         // Todo item do catálogo nasce com uma linha de saldo zerada.
         static::created(function (Item $item) {
             $item->estoque()->create(['saldo_fisico' => 0, 'saldo_reservado' => 0]);
