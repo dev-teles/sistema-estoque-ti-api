@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -34,6 +35,10 @@ class AppServiceProvider extends ServiceProvider
         // Em desenvolvimento: falha cedo em lazy loading (deteta queries N+1).
         Model::preventLazyLoading(! $this->app->isProduction());
         Model::preventSilentlyDiscardingAttributes(true);
+
+        if ($this->app->isProduction() || filter_var(env('FORCE_HTTPS', false), FILTER_VALIDATE_BOOLEAN)) {
+            URL::forceScheme('https');
+        }
 
         // Guard JWT stateless (HS256) + vínculo de contexto RLS na sessão da base de dados.
         Auth::viaRequest('jwt', function (Request $request) {

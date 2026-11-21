@@ -446,4 +446,39 @@ class EstoqueTest extends TestCase
         ])->assertStatus(422)
             ->assertJsonValidationErrors(['cnpj', 'telefone']);
     }
+
+    public function test_trim_nas_respostas_security_headers_e_force_https(): void
+    {
+        $gestor = $this->gestor();
+        $this->actingAs($gestor, 'jwt');
+
+        // 1. Trim nas respostas de API: remove links/path internos da paginação e metadados como updated_at/deleted_at
+        $resp = $this->getJson('/api/catalogo')->assertOk();
+        $resp->assertJsonMissingPath('links')
+            ->assertJsonMissingPath('meta.links')
+            ->assertJsonMissingPath('meta.path')
+            ->assertJsonMissingPath('data.0.updated_at')
+            ->assertJsonMissingPath('data.0.deleted_at');
+
+        // 2. Security Headers completos na resposta
+        $resp->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload')
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('X-Frame-Options', 'DENY')
+            ->assertHeader('X-XSS-Protection', '0')
+            ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+            ->assertHeader('Cross-Origin-Opener-Policy', 'same-origin')
+            ->assertHeader('Cross-Origin-Resource-Policy', 'same-origin')
+            ->assertHeader('Permissions-Policy');
+
+        // 3. Force HTTPS: quando FORCE_HTTPS=true, requisições HTTP sem TLS são bloqueadas com 403
+        putenv('FORCE_HTTPS=true');
+        $_ENV['FORCE_HTTPS'] = 'true';
+        try {
+            $this->getJson('http://localhost/api/catalogo')->assertForbidden();
+            $this->withHeader('X-Forwarded-Proto', 'https')->getJson('http://localhost/api/catalogo')->assertOk();
+        } finally {
+            putenv('FORCE_HTTPS=false');
+            $_ENV['FORCE_HTTPS'] = 'false';
+        }
+    }
 }

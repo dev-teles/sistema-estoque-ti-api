@@ -20,6 +20,7 @@ use Symfony\Component\HttpFoundation\Response;
 class SanitizeInput
 {
     private const SKIP_KEYS = ['password', 'password_confirmation', 'current_password'];
+    private const STRIP_RESPONSE_KEYS = ['password', 'remember_token', 'email_verified_at', 'deleted_at', 'updated_at'];
     private const MAX_JSON_BYTES = 524288; // 512 KB
     private const MAX_FILE_BYTES = 5242880; // 5 MB
     private const ALLOWED_UPLOAD_ROUTES = []; // Nenhuma rota atual aceita upload direto de ficheiros
@@ -29,6 +30,11 @@ class SanitizeInput
 
     public function handle(Request $request, Closure $next): Response
     {
+        $forceHttps = app()->isProduction() || filter_var(env('FORCE_HTTPS', false), FILTER_VALIDATE_BOOLEAN);
+        if ($forceHttps && ! $request->secure() && strtolower((string) $request->header('X-Forwarded-Proto')) !== 'https') {
+            return response()->json(['message' => 'Conexão insegura bloqueada: utilize HTTPS.'], 403);
+        }
+
         if ($erroUpload = $this->validateUploadsAndPayload($request)) {
             LogAcesso::registrar('acesso_negado', $request->user());
 
@@ -41,20 +47,61 @@ class SanitizeInput
         $response = $next($request);
 
         if ($response instanceof JsonResponse) {
+            $payload = $response->getData(true);
+            if (is_array($payload)) {
+                $response->setData($this->trimResponsePayload($payload));
+            }
             $response->setEncodingOptions(
                 $response->getEncodingOptions() | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
             );
         }
 
+        if (function_exists('header_remove')) {
+            @header_remove('X-Powered-By');
+        }
+        $response->headers->remove('X-Powered-By');
+        $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('X-Frame-Options', 'DENY');
+        $response->headers->set('X-XSS-Protection', '0');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
+        $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+        $response->headers->set('Cross-Origin-Opener-Policy', 'same-origin');
+        $response->headers->set('Cross-Origin-Resource-Policy', 'same-origin');
+        $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
         $response->headers->set(
             'Content-Security-Policy',
-            "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
         );
 
         return $response;
+    }
+
+    private function trimResponsePayload(array $payload, bool $isRoot = true): array
+    {
+        if ($isRoot) {
+            unset($payload['links']);
+            if (isset($payload['meta']) && is_array($payload['meta'])) {
+                unset($payload['meta']['links'], $payload['meta']['path']);
+            }
+        }
+
+        $trimmed = [];
+        foreach ($payload as $key => $value) {
+            if (in_array((string) $key, self::STRIP_RESPONSE_KEYS, true)) {
+                continue;
+            }
+
+            if (is_array($value)) {
+                $trimmed[$key] = $this->trimResponsePayload($value, false);
+            } elseif (is_string($value)) {
+                $trimmed[$key] = trim($value);
+            } else {
+                $trimmed[$key] = $value;
+            }
+        }
+
+        return $trimmed;
     }
 
     private function validateUploadsAndPayload(Request $request): ?string
