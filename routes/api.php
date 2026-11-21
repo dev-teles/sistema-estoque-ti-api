@@ -30,9 +30,9 @@ Route::prefix('auth')->middleware('throttle:auth')->group(function () {
 });
 
 // Webhook de integração com o Auvo
-Route::post('webhooks/auvo', [AuvoController::class, 'webhook']);
+Route::post('webhooks/auvo', [AuvoController::class, 'webhook'])->middleware('throttle:webhooks');
 
-Route::middleware('auth:jwt')->group(function () {
+Route::middleware(['auth:jwt', 'throttle:api'])->group(function () {
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::get('auth/me', [AuthController::class, 'me']);
 

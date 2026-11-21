@@ -46,9 +46,13 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(Authenticated::class, fn (Authenticated $e) => HasRowLevelSecurity::bindDbSession($e->user instanceof User ? $e->user : null));
         Event::listen(Logout::class, fn () => HasRowLevelSecurity::bindDbSession(null));
 
-        // Proteção contra força bruta no login / recuperação de senha.
-        RateLimiter::for('auth', fn (Request $request) => Limit::perMinute(10)->by($request->ip().'|'.$request->input('email')));
+        // Proteção contra força bruta e abuso de API (Rate Limiting em camadas).
+        RateLimiter::for('auth', fn (Request $request) => [
+            Limit::perMinute(5)->by($request->ip().'|'.strtolower((string) $request->input('email'))),
+            Limit::perMinute(15)->by('auth_ip:'.$request->ip()),
+        ]);
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)->by($request->user()?->id ?: $request->ip()));
+        RateLimiter::for('webhooks', fn (Request $request) => Limit::perMinute(20)->by('webhook_ip:'.$request->ip()));
 
         // O link de redefinição aponta para a SPA (React), não para uma rota Laravel.
         ResetPassword::createUrlUsing(function (User $user, string $token) {

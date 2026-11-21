@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\JwtService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Rules\Password;
@@ -38,7 +39,7 @@ class UsuarioController extends Controller
         $usuario->fill([
             'name' => $dados['name'],
             'email' => $dados['email'],
-            'password' => $dados['password'],
+            'password' => Hash::make($dados['password']),
         ]);
         $usuario->role = $dados['role'];
         $usuario->save();
@@ -58,6 +59,8 @@ class UsuarioController extends Controller
 
         if (empty($dados['password'])) {
             unset($dados['password']);
+        } else {
+            $dados['password'] = Hash::make($dados['password']);
         }
 
         $role = $dados['role'] ?? $usuario->role->value;

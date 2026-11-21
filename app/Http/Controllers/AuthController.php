@@ -37,7 +37,11 @@ class AuthController extends Controller
             throw ValidationException::withMessages(['email' => 'Utilizador inativo. Contacte o administrador.']);
         }
 
-        $user->forceFill(['ultimo_login_em' => now()])->save();
+        $updates = ['ultimo_login_em' => now()];
+        if (Hash::needsRehash($user->password)) {
+            $updates['password'] = Hash::make($dados['password']);
+        }
+        $user->forceFill($updates)->save();
         LogAcesso::registrar('login', $user);
 
         $jwt = $this->jwt->issue($user);
@@ -85,7 +89,7 @@ class AuthController extends Controller
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (User $user, string $password) {
-                $user->forceFill(['password' => $password, 'remember_token' => Str::random(60)])->save();
+                $user->forceFill(['password' => Hash::make($password), 'remember_token' => Str::random(60)])->save();
                 $this->jwt->revokeAllForUser($user);
             }
         );

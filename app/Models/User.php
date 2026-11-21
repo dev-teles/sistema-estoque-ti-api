@@ -9,6 +9,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -55,6 +56,11 @@ class User extends Authenticatable
 
     protected static function booted(): void
     {
+        static::saving(function (User $user) {
+            if ($user->isDirty('password') && ! empty($user->password) && Hash::needsRehash($user->password)) {
+                $user->password = Hash::make($user->password);
+            }
+        });
         static::creating(fn () => static::rlsRequireRole('admin'));
         static::deleting(fn () => static::rlsRequireRole('admin'));
         static::updating(function (User $target) {

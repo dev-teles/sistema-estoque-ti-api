@@ -330,4 +330,60 @@ class EstoqueTest extends TestCase
         $this->assertSame(\App\Models\Reserva::STATUS_RESERVADO, $reserva->status);
         $this->assertSame($operador->id, $reserva->user_id);
     }
+
+    public function test_cookie_protegido_e_senha_com_hash_bcrypt(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $resp = $this->postJson('/api/auth/login', ['email' => $admin->email, 'password' => 'password'])
+            ->assertOk();
+
+        $cookie = collect($resp->headers->getCookies())->firstWhere(fn ($c) => $c->getName() === 'estoque_ti_jwt');
+        $this->assertNotNull($cookie);
+        $this->assertTrue($cookie->isHttpOnly());
+        $this->assertSame('strict', $cookie->getSameSite());
+        $this->assertNotSame($resp->json('token'), $cookie->getValue());
+
+        // Autentica com o valor cifrado do cookie e cria um novo usuário
+        $novoId = $this->withHeader('Cookie', 'estoque_ti_jwt='.urlencode((string) $cookie->getValue()))
+            ->postJson('/api/usuarios', [
+                'name' => 'Novo Técnico TI',
+                'email' => 'tecnico.novo@estoque.local',
+                'password' => 'SenhaForte123',
+                'role' => 'operador',
+            ])->assertCreated()->json('data.id');
+
+        $rawHash = (string) \Illuminate\Support\Facades\DB::table('users')->where('id', $novoId)->value('password');
+        $this->assertNotSame('SenhaForte123', $rawHash);
+        $this->assertStringStartsWith('$2y$', $rawHash);
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('SenhaForte123', $rawHash));
+    }
+
+    public function test_rate_limit_e_bot_protection_bloqueiam_abuso(): void
+    {
+        // 1. BotProtection: Honeypot preenchido é bloqueado com 422
+        $this->postJson('/api/auth/login', [
+            'email' => 'admin@estoque.local',
+            'password' => 'password',
+            'website' => 'http://spam-bot.invalid',
+        ])->assertStatus(422);
+
+        // 2. BotProtection: User-Agent de scanner malicioso é bloqueado com 403
+        $this->withHeader('User-Agent', 'sqlmap/1.7')->getJson('/api/auth/me')
+            ->assertForbidden();
+        $this->flushHeaders();
+
+        // 3. Rate Limit: após 5 tentativas de login no mesmo minuto para o mesmo e-mail, a 6ª retorna 429
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/auth/login', [
+                'email' => 'alvo.bruteforce@estoque.local',
+                'password' => 'errada',
+            ])->assertStatus(422);
+        }
+
+        $this->postJson('/api/auth/login', [
+            'email' => 'alvo.bruteforce@estoque.local',
+            'password' => 'errada',
+        ])->assertStatus(429);
+    }
 }

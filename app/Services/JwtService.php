@@ -49,13 +49,19 @@ class JwtService
     public function extractToken(Request $request): ?string
     {
         $cookieToken = $request->cookie(self::COOKIE_NAME);
-        if (is_string($cookieToken) && $cookieToken !== '') {
-            return $cookieToken;
+        if (! is_string($cookieToken) || $cookieToken === '') {
+            $rawCookie = (string) $request->header('Cookie', '');
+            if ($rawCookie !== '' && preg_match('/(?:^|;\s*)'.preg_quote(self::COOKIE_NAME, '/').'=([^;]+)/', $rawCookie, $m)) {
+                $cookieToken = urldecode($m[1]);
+            }
         }
 
-        $rawCookie = (string) $request->header('Cookie', '');
-        if ($rawCookie !== '' && preg_match('/(?:^|;\s*)'.preg_quote(self::COOKIE_NAME, '/').'=([^;]+)/', $rawCookie, $m)) {
-            return urldecode($m[1]);
+        if (is_string($cookieToken) && $cookieToken !== '') {
+            try {
+                return Crypt::decryptString($cookieToken);
+            } catch (DecryptException) {
+                return $cookieToken;
+            }
         }
 
         return $request->bearerToken();
@@ -63,22 +69,34 @@ class JwtService
 
     public function makeCookie(string $token): SymfonyCookie
     {
+        $encryptedCookieValue = Crypt::encryptString($token);
+
         return Cookie::make(
             name: self::COOKIE_NAME,
-            value: $token,
+            value: $encryptedCookieValue,
             minutes: (int) (self::TTL_SECONDS / 60),
             path: '/',
-            domain: null,
-            secure: app()->isProduction(),
+            domain: config('session.domain'),
+            secure: (bool) (config('session.secure') ?? (app()->isProduction() || request()?->isSecure())),
             httpOnly: true,
             raw: false,
-            sameSite: 'lax',
+            sameSite: 'strict',
         );
     }
 
     public function forgetCookie(): SymfonyCookie
     {
-        return Cookie::forget(self::COOKIE_NAME, '/');
+        return Cookie::make(
+            name: self::COOKIE_NAME,
+            value: '',
+            minutes: -2628000,
+            path: '/',
+            domain: config('session.domain'),
+            secure: (bool) (config('session.secure') ?? (app()->isProduction() || request()?->isSecure())),
+            httpOnly: true,
+            raw: false,
+            sameSite: 'strict',
+        );
     }
 
     public function authenticate(Request $request): ?User
