@@ -47,15 +47,16 @@ class AuthController extends Controller
             'token_type' => 'Bearer',
             'expires_in' => $jwt['expires_in'],
             'user' => new UserResource($user),
-        ]);
+        ])->withCookie($this->jwt->makeCookie($jwt['token']));
     }
 
     public function logout(Request $request): JsonResponse
     {
-        $this->jwt->revokeToken($request->bearerToken());
+        $this->jwt->revokeToken($this->jwt->extractToken($request));
         LogAcesso::registrar('logout', $request->user());
 
-        return response()->json(['message' => 'Sessão terminada.']);
+        return response()->json(['message' => 'Sessão terminada.'])
+            ->withCookie($this->jwt->forgetCookie());
     }
 
     public function me(Request $request): UserResource

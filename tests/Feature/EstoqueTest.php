@@ -44,17 +44,22 @@ class EstoqueTest extends TestCase
     {
         $user = $this->operador();
 
-        $token = $this->postJson('/api/auth/login', ['email' => $user->email, 'password' => 'password'])
-            ->assertOk()->assertJsonStructure(['token', 'token_type', 'expires_in', 'user' => ['id', 'role', 'role_label']])->json('token');
+        $resp = $this->postJson('/api/auth/login', ['email' => $user->email, 'password' => 'password'])
+            ->assertOk()
+            ->assertCookie('estoque_ti_jwt')
+            ->assertJsonStructure(['token', 'token_type', 'expires_in', 'user' => ['id', 'role', 'role_label']]);
 
+        $token = $resp->json('token');
         $this->assertSame(2, substr_count($token, '.'));
 
-        $this->withToken($token)->getJson('/api/auth/me')
+        // Autenticação via cookie HttpOnly server-side
+        $this->withHeader('Cookie', "estoque_ti_jwt={$token}")->getJson('/api/auth/me')
             ->assertOk()->assertJsonPath('data.role', 'operador');
 
-        $this->withToken($token)->postJson('/api/auth/logout')->assertOk();
+        $this->withHeader('Cookie', "estoque_ti_jwt={$token}")->postJson('/api/auth/logout')
+            ->assertOk()->assertCookieExpired('estoque_ti_jwt');
         $this->app['auth']->forgetGuards();
-        $this->withToken($token)->getJson('/api/auth/me')->assertUnauthorized();
+        $this->withHeader('Cookie', "estoque_ti_jwt={$token}")->getJson('/api/auth/me')->assertUnauthorized();
     }
 
     public function test_login_invalido_e_registado(): void
