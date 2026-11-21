@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Models\User;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Cookie as SymfonyCookie;
 
@@ -20,14 +22,17 @@ class JwtService
         $exp = $now + self::TTL_SECONDS;
         $jti = (string) Str::uuid();
         $header = $this->b64Encode(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
-        $payload = $this->b64Encode(json_encode([
-            'iss' => config('app.url'),
+        $encryptedClaims = Crypt::encryptString(json_encode([
             'sub' => $user->id,
             'role' => $user->role->value,
             'ver' => (int) Cache::get("jwt_ver:{$user->id}", 1),
+            'jti' => $jti,
+        ]));
+        $payload = $this->b64Encode(json_encode([
+            'iss' => config('app.url'),
             'iat' => $now,
             'exp' => $exp,
-            'jti' => $jti,
+            'enc' => $encryptedClaims,
         ]));
 
         $signature = $this->b64Encode(hash_hmac('sha256', "{$header}.{$payload}", $this->secret(), true));
@@ -128,11 +133,21 @@ class JwtService
         }
 
         $claims = json_decode($this->b64Decode($payloadB64), true);
-        if (! is_array($claims) || empty($claims['sub']) || empty($claims['exp']) || $claims['exp'] < time()) {
+        if (! is_array($claims) || empty($claims['enc']) || empty($claims['exp']) || $claims['exp'] < time()) {
             return null;
         }
 
-        return $claims;
+        try {
+            $inner = json_decode(Crypt::decryptString((string) $claims['enc']), true);
+        } catch (DecryptException) {
+            return null;
+        }
+
+        if (! is_array($inner) || empty($inner['sub'])) {
+            return null;
+        }
+
+        return array_merge($claims, $inner);
     }
 
     private function secret(): string

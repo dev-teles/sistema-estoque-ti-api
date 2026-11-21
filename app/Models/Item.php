@@ -34,7 +34,7 @@ class Item extends Model
 
         // Todo item do catálogo nasce com uma linha de saldo zerada.
         static::created(function (Item $item) {
-            $item->estoque()->create(['saldo_fisico' => 0, 'saldo_reservado' => 0]);
+            $item->estoque()->save((new Estoque())->forceFill(['saldo_fisico' => 0, 'saldo_reservado' => 0]));
         });
     }
 

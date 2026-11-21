@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\EncryptedAttribute;
 use App\Models\Concerns\HasRowLevelSecurity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,6 +15,12 @@ class Fornecedor extends Model
     protected $table = 'fornecedores';
 
     protected $fillable = ['nome', 'cnpj', 'contato_nome', 'email', 'telefone'];
+
+    protected $casts = [
+        'contato_nome' => EncryptedAttribute::class,
+        'email' => EncryptedAttribute::class,
+        'telefone' => EncryptedAttribute::class,
+    ];
 
     protected static function booted(): void
     {

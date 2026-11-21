@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\EncryptedAttribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -12,11 +13,13 @@ class Auditoria extends Model
     public const STATUS_FINALIZADA = 'finalizada';
 
     protected $fillable = [
-        'categoria_id', 'status', 'iniciada_por',
-        'finalizada_por', 'finalizada_em', 'observacao',
+        'categoria_id', 'observacao',
     ];
 
-    protected $casts = ['finalizada_em' => 'datetime'];
+    protected $casts = [
+        'observacao' => EncryptedAttribute::class,
+        'finalizada_em' => 'datetime',
+    ];
 
     public function categoria(): BelongsTo
     {

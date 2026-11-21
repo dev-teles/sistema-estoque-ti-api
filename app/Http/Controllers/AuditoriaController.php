@@ -78,7 +78,7 @@ class AuditoriaController extends Controller
                 throw new RegraNegocioException('Já existe uma auditoria em andamento para esta categoria.');
             }
 
-            return Auditoria::create($dados + [
+            return Auditoria::forceCreate($dados + [
                 'iniciada_por' => $request->user()->id,
                 'status' => Auditoria::STATUS_EM_ANDAMENTO,
             ]);
@@ -100,10 +100,13 @@ class AuditoriaController extends Controller
         ], ['contagens.*.item_id.exists' => 'Item não pertence à categoria auditada.']);
 
         foreach ($dados['contagens'] as $linha) {
-            AuditoriaContagem::updateOrCreate(
-                ['auditoria_id' => $auditoria->id, 'item_id' => $linha['item_id']],
-                ['quantidade_contada' => $linha['quantidade_contada'], 'user_id' => $request->user()->id]
-            );
+            $contagem = AuditoriaContagem::firstOrNew([
+                'auditoria_id' => $auditoria->id,
+                'item_id' => $linha['item_id'],
+            ]);
+            $contagem->quantidade_contada = $linha['quantidade_contada'];
+            $contagem->user_id = $request->user()->id;
+            $contagem->save();
         }
 
         return response()->json(['message' => 'Contagem registada.', 'total_contado' => $auditoria->contagens()->count()]);
@@ -164,7 +167,7 @@ class AuditoriaController extends Controller
                     );
                 }
 
-                $contagem->update(['saldo_sistema' => $estoque->saldo_fisico, 'diferenca' => $diferenca]);
+                $contagem->forceFill(['saldo_sistema' => $estoque->saldo_fisico, 'diferenca' => $diferenca])->save();
 
                 if ($diferenca !== 0) {
                     $this->ledger->ajusteAuditoria($item, $diferenca, $auditoria);
@@ -172,11 +175,11 @@ class AuditoriaController extends Controller
                 }
             }
 
-            $auditoria->update([
+            $auditoria->forceFill([
                 'status' => Auditoria::STATUS_FINALIZADA,
                 'finalizada_por' => $request->user()->id,
                 'finalizada_em' => now(),
-            ]);
+            ])->save();
 
             return $ajustes;
         });

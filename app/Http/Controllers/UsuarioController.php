@@ -34,7 +34,16 @@ class UsuarioController extends Controller
             'role' => ['required', new Enum(Role::class)],
         ]);
 
-        return new UserResource(User::create($dados)->refresh());
+        $usuario = new User();
+        $usuario->fill([
+            'name' => $dados['name'],
+            'email' => $dados['email'],
+            'password' => $dados['password'],
+        ]);
+        $usuario->role = $dados['role'];
+        $usuario->save();
+
+        return new UserResource($usuario->refresh());
     }
 
     public function update(Request $request, User $usuario): UserResource
@@ -57,7 +66,14 @@ class UsuarioController extends Controller
             abort(422, 'Não pode desativar nem rebaixar o seu próprio utilizador.');
         }
 
-        $usuario->update($dados);
+        $usuario->fill(array_intersect_key($dados, array_flip(['name', 'email', 'password'])));
+        if (array_key_exists('role', $dados)) {
+            $usuario->role = $dados['role'];
+        }
+        if (array_key_exists('ativo', $dados)) {
+            $usuario->ativo = $dados['ativo'];
+        }
+        $usuario->save();
 
         if (($dados['ativo'] ?? true) === false || isset($dados['password'])) {
             app(JwtService::class)->revokeAllForUser($usuario);

@@ -21,9 +21,9 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        User::create(['name' => 'Admin TI', 'email' => 'admin@estoque.local', 'password' => 'password', 'role' => Role::Admin]);
-        $gestorTi = User::create(['name' => 'Gestora de TI', 'email' => 'gestor.ti@estoque.local', 'password' => 'password', 'role' => Role::Gestor]);
-        $operTi = User::create(['name' => 'Operador de Suporte TI', 'email' => 'operador.ti@estoque.local', 'password' => 'password', 'role' => Role::Operador]);
+        User::forceCreate(['name' => 'Admin TI', 'email' => 'admin@estoque.local', 'password' => 'password', 'role' => Role::Admin]);
+        $gestorTi = User::forceCreate(['name' => 'Gestora de TI', 'email' => 'gestor.ti@estoque.local', 'password' => 'password', 'role' => Role::Gestor]);
+        $operTi = User::forceCreate(['name' => 'Operador de Suporte TI', 'email' => 'operador.ti@estoque.local', 'password' => 'password', 'role' => Role::Operador]);
 
         $fornTech = Fornecedor::create(['nome' => 'TechDistribuidora Hardware Ltda', 'cnpj' => '12345678000190', 'contato_nome' => 'Carla Mendes', 'email' => 'vendas@techdist.com.br', 'telefone' => '(11) 4002-8922']);
         $fornCabo = Fornecedor::create(['nome' => 'Conecta Cabos e Redes', 'cnpj' => '98765432000110', 'contato_nome' => 'Rui Alves', 'email' => 'comercial@conectacabos.com.br', 'telefone' => '(11) 3555-0199']);
@@ -80,7 +80,7 @@ class DatabaseSeeder extends Seeder
         }
 
         // Entrada inicial via NF.
-        $nf = NotaFiscal::create([
+        $nf = NotaFiscal::forceCreate([
             'fornecedor_id' => $fornecedores[0]->id,
             'user_id' => $gestorTi->id,
             'numero' => (string) mt_rand(10000, 99999),
@@ -116,7 +116,7 @@ class DatabaseSeeder extends Seeder
 
             if ($dia === 20) {
                 auth()->setUser($gestorTi);
-                $nf2 = NotaFiscal::create([
+                $nf2 = NotaFiscal::forceCreate([
                     'fornecedor_id' => $fornecedores[1]->id,
                     'user_id' => $gestorTi->id,
                     'numero' => (string) mt_rand(10000, 99999),

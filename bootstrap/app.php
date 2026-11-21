@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Middleware\EnsureRole;
+use App\Models\LogAcesso;
+use Illuminate\Database\Eloquent\MassAssignmentException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -27,6 +29,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (NotFoundHttpException $e, Request $request) {
             if ($request->is('api/*') && $e->getPrevious() instanceof ModelNotFoundException) {
                 return response()->json(['message' => 'Registo não encontrado.'], 404);
+            }
+        });
+
+        $exceptions->render(function (MassAssignmentException $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                LogAcesso::registrar('acesso_negado', $request->user());
+
+                return response()->json([
+                    'message' => 'Operação bloqueada: tentativa de atribuição em massa de campo protegido.',
+                ], 422);
             }
         });
     })->create();

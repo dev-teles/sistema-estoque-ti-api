@@ -33,6 +33,7 @@ class AppServiceProvider extends ServiceProvider
     {
         // Em desenvolvimento: falha cedo em lazy loading (deteta queries N+1).
         Model::preventLazyLoading(! $this->app->isProduction());
+        Model::preventSilentlyDiscardingAttributes(true);
 
         // Guard JWT stateless (HS256) + vínculo de contexto RLS na sessão da base de dados.
         Auth::viaRequest('jwt', function (Request $request) {

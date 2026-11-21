@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\EncryptedAttribute;
 use App\Models\Concerns\HasRowLevelSecurity;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
@@ -33,12 +34,9 @@ class Movimentacao extends Model
 
     protected $table = 'movimentacoes';
 
-    protected $fillable = [
-        'item_id', 'user_id', 'tipo', 'motivo', 'quantidade',
-        'delta_fisico', 'delta_reservado', 'saldo_fisico_apos', 'saldo_reservado_apos',
-        'valor_unitario', 'nota_fiscal_id', 'reserva_id', 'auditoria_id',
-        'movimentacao_estornada_id', 'destino', 'justificativa', 'created_at',
-    ];
+    protected $fillable = [];
+
+    protected $guarded = ['*'];
 
     protected $casts = [
         'quantidade' => 'integer',
@@ -47,6 +45,8 @@ class Movimentacao extends Model
         'saldo_fisico_apos' => 'integer',
         'saldo_reservado_apos' => 'integer',
         'valor_unitario' => 'decimal:2',
+        'destino' => EncryptedAttribute::class,
+        'justificativa' => EncryptedAttribute::class,
         'created_at' => 'datetime',
     ];
 

@@ -189,7 +189,8 @@ class EstoqueTest extends TestCase
         $mov = Movimentacao::findOrFail($id);
 
         $this->expectException(LogicException::class);
-        $mov->update(['quantidade' => 999]);
+        $mov->quantidade = 999;
+        $mov->save();
     }
 
     public function test_relatorios_mensal_e_criticos(): void
@@ -227,5 +228,106 @@ class EstoqueTest extends TestCase
         // Write Guard RLS: operador não pode alterar outro usuário nem criar item diretamente no Model
         $this->expectException(\Illuminate\Auth\Access\AuthorizationException::class);
         $gestor->update(['name' => 'Hack']);
+    }
+
+    public function test_dados_sensiveis_e_payload_jwt_sao_criptografados_em_repouso(): void
+    {
+        $gestor = $this->gestor();
+        $this->actingAs($gestor, 'jwt');
+
+        $fornecedor = \App\Models\Fornecedor::create([
+            'nome' => 'Fornecedor Seguro Ltda',
+            'cnpj' => '11222333000188',
+            'contato_nome' => 'João Silva',
+            'email' => 'segredo@fornecedor.com.br',
+            'telefone' => '(11) 99999-8888',
+        ]);
+
+        $this->postJson('/api/estoque/entrada', ['item_id' => $this->item->id, 'quantidade' => 5]);
+        $this->postJson('/api/estoque/saida', [
+            'item_id' => $this->item->id,
+            'quantidade' => 1,
+            'motivo' => 'dano',
+            'destino' => 'Bancada Secreta TI',
+            'justificativa' => 'Placa queimada por surto elétrico',
+        ])->assertCreated();
+
+        $rawFornecedor = \Illuminate\Support\Facades\DB::table('fornecedores')->where('id', $fornecedor->id)->first();
+        $this->assertNotSame('segredo@fornecedor.com.br', $rawFornecedor->email);
+        $this->assertStringNotContainsString('segredo@fornecedor.com.br', (string) $rawFornecedor->email);
+        $this->assertNotSame('(11) 99999-8888', $rawFornecedor->telefone);
+        $this->assertSame('segredo@fornecedor.com.br', $fornecedor->fresh()->email);
+        $this->assertSame('(11) 99999-8888', $fornecedor->fresh()->telefone);
+
+        $rawMov = \Illuminate\Support\Facades\DB::table('movimentacoes')->where('tipo', 'saida')->first();
+        $this->assertStringNotContainsString('Bancada Secreta TI', (string) $rawMov->destino);
+        $this->assertStringNotContainsString('Placa queimada', (string) $rawMov->justificativa);
+        $movModel = Movimentacao::findOrFail($rawMov->id);
+        $this->assertSame('Bancada Secreta TI', $movModel->destino);
+        $this->assertSame('Placa queimada por surto elétrico', $movModel->justificativa);
+
+        // Verifica que o payload do JWT não expõe sub, role ou jti em texto aberto
+        $token = $this->postJson('/api/auth/login', ['email' => $gestor->email, 'password' => 'password'])
+            ->assertOk()->json('token');
+        [, $payloadB64] = explode('.', $token);
+        $payload = json_decode((string) base64_decode(strtr($payloadB64, '-_', '+/')), true);
+        $this->assertArrayHasKey('enc', $payload);
+        $this->assertArrayNotHasKey('sub', $payload);
+        $this->assertArrayNotHasKey('role', $payload);
+        $this->assertArrayNotHasKey('jti', $payload);
+    }
+
+    public function test_mass_assignment_e_bloqueado_para_campos_protegidos(): void
+    {
+        $operador = $this->operador();
+        $this->actingAs($operador, 'jwt');
+
+        // 1. User: role e ativo estão fora de $fillable
+        try {
+            $operador->update(['role' => 'admin', 'ativo' => false]);
+            $this->fail('Esperava MassAssignmentException ao tentar alterar role/ativo em User.');
+        } catch (\Illuminate\Database\Eloquent\MassAssignmentException) {
+            $this->addToAssertionCount(1);
+        }
+
+        // 2. Estoque: bloqueado contra mass assignment ($guarded = ['*'])
+        $estoque = $this->item->estoque()->firstOrFail();
+        try {
+            $estoque->update(['saldo_fisico' => 999]);
+            $this->fail('Esperava MassAssignmentException ao tentar alterar saldo_fisico em Estoque.');
+        } catch (\Illuminate\Database\Eloquent\MassAssignmentException) {
+            $this->addToAssertionCount(1);
+        }
+
+        // 3. Movimentacao: bloqueada contra mass assignment ($guarded = ['*'])
+        try {
+            Movimentacao::create([
+                'item_id' => $this->item->id,
+                'user_id' => $operador->id,
+                'tipo' => Movimentacao::TIPO_ENTRADA,
+                'quantidade' => 10,
+                'delta_fisico' => 10,
+                'delta_reservado' => 0,
+                'saldo_fisico_apos' => 10,
+                'saldo_reservado_apos' => 0,
+            ]);
+            $this->fail('Esperava MassAssignmentException ao tentar criar Movimentacao via mass assignment.');
+        } catch (\Illuminate\Database\Eloquent\MassAssignmentException) {
+            $this->addToAssertionCount(1);
+        }
+
+        // 4. API: enviar campos de sistema extras em POST /api/reservas não sobrescreve status nem user_id
+        $this->postJson('/api/estoque/entrada', ['item_id' => $this->item->id, 'quantidade' => 5])->assertCreated();
+        $reservaId = $this->postJson('/api/reservas', [
+            'item_id' => $this->item->id,
+            'quantidade' => 1,
+            'solicitante' => 'Ana',
+            'status' => 'entregue',
+            'user_id' => 999,
+        ])->assertCreated()->json('data.id');
+
+        $reserva = \App\Models\Reserva::findOrFail($reservaId);
+        $this->assertSame(\App\Models\Reserva::STATUS_RESERVADO, $reserva->status);
+        $this->assertSame($operador->id, $reserva->user_id);
     }
 }

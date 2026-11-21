@@ -46,7 +46,7 @@ class LedgerService
         return DB::transaction(function () use ($item, $quantidade, $solicitante, $observacao) {
             $this->garantirSemAuditoria($item);
 
-            $reserva = Reserva::create([
+            $reserva = Reserva::forceCreate([
                 'item_id' => $item->id,
                 'user_id' => $this->userId(),
                 'solicitante' => $solicitante,
@@ -80,11 +80,11 @@ class LedgerService
                 'destino' => $reserva->solicitante,
             ]);
 
-            $reserva->update([
+            $reserva->forceFill([
                 'status' => Reserva::STATUS_ENTREGUE,
                 'finalizada_por' => $this->userId(),
                 'finalizada_em' => now(),
-            ]);
+            ])->save();
 
             return $reserva;
         });
@@ -103,11 +103,11 @@ class LedgerService
                 'justificativa' => $justificativa,
             ]);
 
-            $reserva->update([
+            $reserva->forceFill([
                 'status' => Reserva::STATUS_CANCELADO,
                 'finalizada_por' => $this->userId(),
                 'finalizada_em' => now(),
-            ]);
+            ])->save();
 
             return $reserva;
         });
@@ -165,7 +165,7 @@ class LedgerService
     public function bloquearSaldo(Item $item): Estoque
     {
         return Estoque::where('item_id', $item->id)->lockForUpdate()->first()
-            ?? Estoque::create(['item_id' => $item->id, 'saldo_fisico' => 0, 'saldo_reservado' => 0]);
+            ?? Estoque::forceCreate(['item_id' => $item->id, 'saldo_fisico' => 0, 'saldo_reservado' => 0]);
     }
 
     private function lancar(Item $item, string $tipo, int $quantidade, int $deltaFisico, int $deltaReservado, array $extra = []): Movimentacao
@@ -187,9 +187,9 @@ class LedgerService
             );
         }
 
-        $estoque->update(['saldo_fisico' => $novoFisico, 'saldo_reservado' => $novoReservado]);
+        $estoque->forceFill(['saldo_fisico' => $novoFisico, 'saldo_reservado' => $novoReservado])->save();
 
-        return Movimentacao::create(array_merge([
+        return Movimentacao::forceCreate(array_merge([
             'item_id' => $item->id,
             'user_id' => $this->userId(),
             'tipo' => $tipo,

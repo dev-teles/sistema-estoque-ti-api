@@ -58,7 +58,7 @@ class NotaFiscalController extends Controller
         ]);
 
         $nota = DB::transaction(function () use ($dados, $request) {
-            $nota = NotaFiscal::create([
+            $nota = NotaFiscal::forceCreate([
                 'fornecedor_id' => $dados['fornecedor_id'],
                 'user_id' => $request->user()->id,
                 'numero' => $dados['numero'],

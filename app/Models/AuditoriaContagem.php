@@ -10,7 +10,7 @@ class AuditoriaContagem extends Model
     protected $table = 'auditoria_contagens';
 
     protected $fillable = [
-        'auditoria_id', 'item_id', 'user_id', 'quantidade_contada', 'saldo_sistema', 'diferenca',
+        'auditoria_id', 'item_id', 'quantidade_contada',
     ];
 
     protected $casts = [

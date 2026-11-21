@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\EncryptedAttribute;
 use App\Models\Concerns\HasRowLevelSecurity;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -16,9 +17,15 @@ class LogAcesso extends Model
 
     protected $table = 'logs_acesso';
 
-    protected $fillable = ['user_id', 'evento', 'email', 'rota', 'ip', 'user_agent'];
+    protected $fillable = [];
 
-    protected $casts = ['created_at' => 'datetime'];
+    protected $guarded = ['*'];
+
+    protected $casts = [
+        'ip' => EncryptedAttribute::class,
+        'user_agent' => EncryptedAttribute::class,
+        'created_at' => 'datetime',
+    ];
 
     protected static function booted(): void
     {
@@ -36,7 +43,7 @@ class LogAcesso extends Model
     {
         $request = request();
 
-        static::create([
+        static::forceCreate([
             'user_id' => $user?->id,
             'evento' => $evento,
             'email' => $email ?? $user?->email,

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\EncryptedAttribute;
 use App\Models\Concerns\HasRowLevelSecurity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,13 +15,14 @@ class NotaFiscal extends Model
     protected $table = 'notas_fiscais';
 
     protected $fillable = [
-        'fornecedor_id', 'user_id', 'numero', 'serie',
+        'fornecedor_id', 'numero', 'serie',
         'data_emissao', 'valor_total', 'observacao',
     ];
 
     protected $casts = [
         'data_emissao' => 'date:Y-m-d',
         'valor_total' => 'decimal:2',
+        'observacao' => EncryptedAttribute::class,
     ];
 
     protected static function booted(): void

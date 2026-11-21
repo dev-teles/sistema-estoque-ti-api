@@ -16,7 +16,9 @@ class Estoque extends Model
     public const STATUS_ALERTA = 'alerta';
     public const STATUS_CRITICO = 'critico';
 
-    protected $fillable = ['item_id', 'saldo_fisico', 'saldo_reservado'];
+    protected $fillable = [];
+
+    protected $guarded = ['*'];
 
     protected $casts = [
         'saldo_fisico' => 'integer',

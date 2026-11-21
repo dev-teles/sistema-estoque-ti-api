@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\EncryptedAttribute;
 use App\Models\Concerns\HasRowLevelSecurity;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
@@ -17,12 +18,12 @@ class Reserva extends Model
     public const STATUS_CANCELADO = 'cancelado';
 
     protected $fillable = [
-        'item_id', 'user_id', 'solicitante', 'quantidade',
-        'status', 'observacao', 'finalizada_por', 'finalizada_em',
+        'item_id', 'solicitante', 'quantidade', 'observacao',
     ];
 
     protected $casts = [
         'quantidade' => 'integer',
+        'observacao' => EncryptedAttribute::class,
         'finalizada_em' => 'datetime',
     ];
 
