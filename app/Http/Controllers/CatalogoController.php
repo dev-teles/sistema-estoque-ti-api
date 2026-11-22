@@ -14,7 +14,7 @@ class CatalogoController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
-        $query = Item::with(['categoria', 'estoque'])->orderBy('nome');
+        $query = Item::with(['categoria:id,nome', 'estoque'])->orderBy('nome');
 
         if ($request->boolean('incluir_inativos')) {
             $query->withTrashed();
@@ -31,7 +31,7 @@ class CatalogoController extends Controller
 
     public function show(int $id): ItemResource
     {
-        return new ItemResource(Item::withTrashed()->with(['categoria', 'estoque'])->findOrFail($id));
+        return new ItemResource(Item::withTrashed()->with(['categoria:id,nome', 'estoque'])->findOrFail($id));
     }
 
     public function store(Request $request): ItemResource
@@ -40,14 +40,14 @@ class CatalogoController extends Controller
 
         $item = Item::create($dados)->refresh();
 
-        return new ItemResource($item->load(['categoria', 'estoque']));
+        return new ItemResource($item->load(['categoria:id,nome', 'estoque']));
     }
 
     public function update(Request $request, Item $item): ItemResource
     {
         $item->update($this->validar($request, parcial: true));
 
-        return new ItemResource($item->load(['categoria', 'estoque']));
+        return new ItemResource($item->load(['categoria:id,nome', 'estoque']));
     }
 
     /** Soft delete (inativação). O histórico permanece intacto. */
@@ -67,7 +67,7 @@ class CatalogoController extends Controller
         $item = Item::onlyTrashed()->findOrFail($id);
         $item->restore();
 
-        return new ItemResource($item->load(['categoria', 'estoque']));
+        return new ItemResource($item->load(['categoria:id,nome', 'estoque']));
     }
 
     private function validar(Request $request, bool $parcial = false): array

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Concerns\HasRowLevelSecurity;
 use App\Models\Item;
+use App\Models\LogAcesso;
 use App\Models\User;
 use App\Services\AuvoService;
 use App\Services\LedgerService;
@@ -33,6 +35,23 @@ class AuvoController extends Controller
      */
     public function webhook(Request $request): JsonResponse
     {
+        if (! auth('jwt')->check()) {
+            $secret = (string) config('services.auvo.webhook_secret');
+            $token = (string) $request->header('X-Auvo-Token');
+
+            if ($secret === '' || $token === '' || ! hash_equals($secret, $token)) {
+                LogAcesso::registrar('acesso_negado');
+
+                return response()->json(['message' => 'Token de webhook inválido ou ausente.'], 401);
+            }
+
+            $operadorPadrao = User::where('ativo', true)->where('role', 'operador')->orderBy('id')->first()
+                ?? User::where('ativo', true)->orderBy('id')->firstOrFail();
+            auth('jwt')->setUser($operadorPadrao);
+            auth()->setUser($operadorPadrao);
+            HasRowLevelSecurity::bindDbSession($operadorPadrao);
+        }
+
         $dados = $request->validate([
             'taskID' => ['required', 'integer'],
             'customerDescription' => ['nullable', 'string', 'max:150'],
@@ -40,12 +59,6 @@ class AuvoController extends Controller
             'item_id' => ['required', 'exists:itens,id'],
             'quantidade' => ['nullable', 'integer', 'min:1'],
         ]);
-
-        // Em chamadas de webhook sem sessão autenticada, utiliza o primeiro operador/admin ativo
-        if (! auth()->check()) {
-            $operadorPadrao = User::where('ativo', true)->orderBy('id')->firstOrFail();
-            auth()->setUser($operadorPadrao);
-        }
 
         $item = Item::findOrFail($dados['item_id']);
         $cliente = $dados['customerDescription'] ?? 'Solicitante Auvo';

@@ -117,6 +117,8 @@ class LedgerService
     public function estornarMovimentacao(Movimentacao $original, string $justificativa): Movimentacao
     {
         return DB::transaction(function () use ($original, $justificativa) {
+            $original = Movimentacao::whereKey($original->id)->lockForUpdate()->firstOrFail();
+
             if (! in_array($original->tipo, [Movimentacao::TIPO_ENTRADA, Movimentacao::TIPO_SAIDA], true)) {
                 throw new RegraNegocioException('Apenas movimentações de entrada ou saída podem ser estornadas.');
             }

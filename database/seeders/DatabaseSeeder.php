@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Enums\Role;
 use App\Models\Categoria;
+use App\Models\Concerns\HasRowLevelSecurity;
 use App\Models\Fornecedor;
 use App\Models\Item;
 use App\Models\NotaFiscal;
@@ -148,5 +149,6 @@ class DatabaseSeeder extends Seeder
         }
 
         auth()->forgetUser();
+        HasRowLevelSecurity::bindDbSession(null);
     }
 }

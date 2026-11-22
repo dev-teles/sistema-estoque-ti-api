@@ -19,7 +19,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class SanitizeInput
 {
-    private const SKIP_KEYS = ['password', 'password_confirmation', 'current_password'];
+    private const SKIP_KEYS = ['password', 'password_confirmation', 'current_password', 'token'];
     private const STRIP_RESPONSE_KEYS = ['password', 'remember_token', 'email_verified_at', 'deleted_at', 'updated_at'];
     private const MAX_JSON_BYTES = 524288; // 512 KB
     private const MAX_FILE_BYTES = 5242880; // 5 MB
@@ -88,7 +88,7 @@ class SanitizeInput
 
         $trimmed = [];
         foreach ($payload as $key => $value) {
-            if (in_array((string) $key, self::STRIP_RESPONSE_KEYS, true)) {
+            if (is_string($key) && in_array($key, self::STRIP_RESPONSE_KEYS, true)) {
                 continue;
             }
 
