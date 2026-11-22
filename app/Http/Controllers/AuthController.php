@@ -9,8 +9,6 @@ use App\Services\JwtService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\Validation\ValidationException;
 
@@ -68,36 +66,26 @@ class AuthController extends Controller
         return new UserResource($request->user());
     }
 
-    public function forgotPassword(Request $request): JsonResponse
+    public function changePassword(Request $request): JsonResponse
     {
-        $request->validate(['email' => ['required', 'email']]);
-
-        Password::sendResetLink($request->only('email'));
-
-        // Resposta neutra: não revela se o e-mail existe.
-        return response()->json(['message' => 'Se o e-mail estiver registado, receberá um link para redefinir a senha.']);
-    }
-
-    public function resetPassword(Request $request): JsonResponse
-    {
-        $request->validate([
-            'token' => ['required'],
-            'email' => ['required', 'email'],
-            'password' => ['required', 'confirmed', PasswordRule::min(8)],
+        $dados = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => ['required', PasswordRule::min(8)],
         ]);
 
-        $status = Password::reset(
-            $request->only('email', 'password', 'password_confirmation', 'token'),
-            function (User $user, string $password) {
-                $user->forceFill(['password' => Hash::make($password), 'remember_token' => Str::random(60)])->save();
-                $this->jwt->revokeAllForUser($user);
-            }
-        );
+        $user = $request->user();
 
-        if ($status !== Password::PASSWORD_RESET) {
-            throw ValidationException::withMessages(['email' => 'Token inválido ou expirado.']);
+        if (! Hash::check($dados['current_password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => 'A senha atual está incorreta.',
+            ]);
         }
 
-        return response()->json(['message' => 'Senha redefinida com sucesso.']);
+        $user->forceFill(['password' => Hash::make($dados['password'])])->save();
+        $this->jwt->revokeAllForUser($user);
+        $jwt = $this->jwt->issue($user);
+
+        return response()->json(['message' => 'Senha alterada com sucesso.'])
+            ->withCookie($this->jwt->makeCookie($jwt['token']));
     }
 }

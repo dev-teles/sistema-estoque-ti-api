@@ -7,7 +7,6 @@ use App\Models\User;
 use App\Services\JwtService;
 use Illuminate\Auth\Events\Authenticated;
 use Illuminate\Auth\Events\Logout;
-use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -19,17 +18,6 @@ use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
-    public function register(): void
-    {
-        //
-    }
-
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         // Em desenvolvimento: falha cedo em lazy loading (deteta queries N+1).
@@ -58,12 +46,5 @@ class AppServiceProvider extends ServiceProvider
         ]);
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)->by($request->user()?->id ?: $request->ip()));
         RateLimiter::for('webhooks', fn (Request $request) => Limit::perMinute(20)->by('webhook_ip:'.$request->ip()));
-
-        // O link de redefinição aponta para a SPA (React), não para uma rota Laravel.
-        ResetPassword::createUrlUsing(function (User $user, string $token) {
-            $base = rtrim(explode(',', (string) config('app.frontend_url'))[0], '/');
-
-            return $base.'/redefinir-senha?token='.$token.'&email='.urlencode($user->email);
-        });
     }
 }

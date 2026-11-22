@@ -84,23 +84,18 @@ class EstoqueController extends Controller
         return new MovimentacaoResource($mov->load(['item', 'user']));
     }
 
-    /**
-     * Estorno justificado. Duas formas:
-     *  - { movimentacao_id, justificativa }        → reverte integralmente uma entrada/saída;
-     *  - { item_id, quantidade (±), justificativa } → ajuste manual do saldo físico.
-     */
+    /** Estorno justificado: reverte integralmente uma entrada ou saída anterior. */
     public function estorno(Request $request): JsonResponse
     {
         $dados = $request->validate([
-            'movimentacao_id' => ['nullable', 'required_without:item_id', $this->existe('movimentacoes')],
-            'item_id' => ['nullable', 'required_without:movimentacao_id', $this->existe('itens')],
-            'quantidade' => ['nullable', 'required_with:item_id', 'integer', 'not_in:0', 'between:-1000000,1000000'],
+            'movimentacao_id' => ['required', $this->existe('movimentacoes')],
             'justificativa' => ['required', 'string', 'min:10', 'max:500'],
         ]);
 
-        $mov = isset($dados['movimentacao_id'])
-            ? $this->ledger->estornarMovimentacao(Movimentacao::findOrFail($dados['movimentacao_id']), $dados['justificativa'])
-            : $this->ledger->ajustar(Item::withTrashed()->findOrFail($dados['item_id']), (int) $dados['quantidade'], $dados['justificativa']);
+        $mov = $this->ledger->estornarMovimentacao(
+            Movimentacao::findOrFail($dados['movimentacao_id']),
+            $dados['justificativa']
+        );
 
         return (new MovimentacaoResource($mov->load(['item', 'user'])))->response()->setStatusCode(201);
     }

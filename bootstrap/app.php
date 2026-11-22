@@ -28,7 +28,6 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => EnsureRole::class,
-            'bot' => BotProtection::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -136,22 +136,6 @@ class LedgerService
         });
     }
 
-    /** Ajuste manual justificado (positivo ou negativo) do saldo físico. */
-    public function ajustar(Item $item, int $delta, string $justificativa): Movimentacao
-    {
-        if ($delta === 0) {
-            throw new RegraNegocioException('A quantidade do ajuste não pode ser zero.');
-        }
-
-        return DB::transaction(function () use ($item, $delta, $justificativa) {
-            $this->garantirSemAuditoria($item);
-
-            return $this->lancar($item, Movimentacao::TIPO_ESTORNO, abs($delta), $delta, 0, [
-                'justificativa' => $justificativa,
-            ]);
-        });
-    }
-
     /** Ajuste gerado pela reconciliação do inventário cíclico (ignora o bloqueio da própria auditoria). */
     public function ajusteAuditoria(Item $item, int $delta, Auditoria $auditoria): Movimentacao
     {

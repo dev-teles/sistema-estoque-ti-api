@@ -25,8 +25,6 @@ use Illuminate\Support\Facades\Route;
 // 1. Autenticação (pública)
 Route::prefix('auth')->middleware('throttle:auth')->group(function () {
     Route::post('login', [AuthController::class, 'login']);
-    Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
-    Route::post('reset-password', [AuthController::class, 'resetPassword']);
 });
 
 // Webhook de integração com o Auvo
@@ -35,6 +33,7 @@ Route::post('webhooks/auvo', [AuvoController::class, 'webhook'])->middleware('th
 Route::middleware(['auth:jwt', 'throttle:api'])->group(function () {
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::get('auth/me', [AuthController::class, 'me']);
+    Route::post('auth/change-password', [AuthController::class, 'changePassword']);
 
     // Integração Auvo: busca de tarefa por ID
     Route::get('auvo/tarefas/{taskId}', [AuvoController::class, 'buscarTarefa'])->whereNumber('taskId');
