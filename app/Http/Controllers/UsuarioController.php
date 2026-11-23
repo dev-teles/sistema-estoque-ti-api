@@ -79,7 +79,7 @@ class UsuarioController extends Controller
         }
         $usuario->save();
 
-        if (($dados['ativo'] ?? true) === false || isset($dados['password'])) {
+        if ((($dados['ativo'] ?? true) === false || isset($dados['password'])) && ! $usuario->is($request->user())) {
             app(JwtService::class)->revokeAllForUser($usuario);
         }
 
