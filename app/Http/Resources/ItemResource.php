@@ -13,6 +13,7 @@ class ItemResource extends JsonResource
         return [
             'id' => $this->id,
             'nome' => $this->nome,
+            'numero_serie' => $this->numero_serie,
             'descricao' => $this->descricao,
             'categoria_id' => $this->categoria_id,
             'categoria' => $this->whenLoaded('categoria', fn () => [

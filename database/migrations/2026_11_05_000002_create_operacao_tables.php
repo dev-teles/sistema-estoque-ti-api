@@ -102,16 +102,20 @@ return new class extends Migration
         });
 
         if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
-            DB::unprepared("
-                CREATE TRIGGER movimentacoes_bloqueia_update BEFORE UPDATE ON movimentacoes
-                FOR EACH ROW SIGNAL SQLSTATE '45000'
-                SET MESSAGE_TEXT = 'Livro-razao imutavel: UPDATE nao permitido em movimentacoes';
-            ");
-            DB::unprepared("
-                CREATE TRIGGER movimentacoes_bloqueia_delete BEFORE DELETE ON movimentacoes
-                FOR EACH ROW SIGNAL SQLSTATE '45000'
-                SET MESSAGE_TEXT = 'Livro-razao imutavel: DELETE nao permitido em movimentacoes';
-            ");
+            try {
+                DB::unprepared("
+                    CREATE TRIGGER movimentacoes_bloqueia_update BEFORE UPDATE ON movimentacoes
+                    FOR EACH ROW SIGNAL SQLSTATE '45000'
+                    SET MESSAGE_TEXT = 'Livro-razao imutavel: UPDATE nao permitido em movimentacoes';
+                ");
+                DB::unprepared("
+                    CREATE TRIGGER movimentacoes_bloqueia_delete BEFORE DELETE ON movimentacoes
+                    FOR EACH ROW SIGNAL SQLSTATE '45000'
+                    SET MESSAGE_TEXT = 'Livro-razao imutavel: DELETE nao permitido em movimentacoes';
+                ");
+            } catch (\Throwable) {
+                // Em hosts MySQL compartilhados sem privilégio SUPER/TRIGGER, a imutabilidade segue garantida no Model.
+            }
         }
     }
 

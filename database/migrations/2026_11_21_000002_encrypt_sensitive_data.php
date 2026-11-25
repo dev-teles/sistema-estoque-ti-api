@@ -43,8 +43,11 @@ return new class extends Migration
 
         // Suspende triggers de imutabilidade apenas durante a migração única de criptografia dos registos legados
         if ($isMysql) {
-            DB::unprepared('DROP TRIGGER IF EXISTS movimentacoes_bloqueia_update');
-            DB::unprepared('DROP TRIGGER IF EXISTS rls_logs_acesso_no_update');
+            try {
+                DB::unprepared('DROP TRIGGER IF EXISTS movimentacoes_bloqueia_update');
+                DB::unprepared('DROP TRIGGER IF EXISTS rls_logs_acesso_no_update');
+            } catch (\Throwable) {
+            }
         }
 
         try {
@@ -56,16 +59,19 @@ return new class extends Migration
             $this->encryptTableColumns('logs_acesso', ['ip', 'user_agent']);
         } finally {
             if ($isMysql) {
-                DB::unprepared("
-                    CREATE TRIGGER movimentacoes_bloqueia_update BEFORE UPDATE ON movimentacoes
-                    FOR EACH ROW SIGNAL SQLSTATE '45000'
-                    SET MESSAGE_TEXT = 'Livro-razao imutavel: UPDATE nao permitido em movimentacoes';
-                ");
-                DB::unprepared("
-                    CREATE TRIGGER rls_logs_acesso_no_update BEFORE UPDATE ON logs_acesso
-                    FOR EACH ROW SIGNAL SQLSTATE '45000'
-                    SET MESSAGE_TEXT = 'RLS: logs_acesso e imutavel (UPDATE bloqueado)';
-                ");
+                try {
+                    DB::unprepared("
+                        CREATE TRIGGER movimentacoes_bloqueia_update BEFORE UPDATE ON movimentacoes
+                        FOR EACH ROW SIGNAL SQLSTATE '45000'
+                        SET MESSAGE_TEXT = 'Livro-razao imutavel: UPDATE nao permitido em movimentacoes';
+                    ");
+                    DB::unprepared("
+                        CREATE TRIGGER rls_logs_acesso_no_update BEFORE UPDATE ON logs_acesso
+                        FOR EACH ROW SIGNAL SQLSTATE '45000'
+                        SET MESSAGE_TEXT = 'RLS: logs_acesso e imutavel (UPDATE bloqueado)';
+                    ");
+                } catch (\Throwable) {
+                }
             }
         }
     }

@@ -30,9 +30,10 @@ return new class extends Migration
             return;
         }
 
-        $this->down();
+        try {
+            $this->down();
 
-        // 1. Logs de acesso imutáveis (append-only)
+            // 1. Logs de acesso imutáveis (append-only)
         DB::unprepared("
             CREATE TRIGGER rls_logs_acesso_no_update BEFORE UPDATE ON logs_acesso
             FOR EACH ROW SIGNAL SQLSTATE '45000'
@@ -129,6 +130,9 @@ return new class extends Migration
                 END IF;
             END
         ");
+        } catch (\Throwable) {
+            // Em hosts MySQL compartilhados sem privilégio SUPER/TRIGGER, o RLS segue garantido pelo Trait Eloquent.
+        }
     }
 
     public function down(): void

@@ -29,7 +29,8 @@ class EstoqueController extends Controller
         $query = Estoque::ativos()->with('item.categoria');
 
         if ($busca = $request->query('search')) {
-            $query->where('itens.nome', 'like', $this->termoLike((string) $busca));
+            $like = $this->termoLike((string) $busca);
+            $query->where(fn ($q) => $q->where('itens.nome', 'like', $like)->orWhere('itens.numero_serie', 'like', $like));
         }
         if ($categoria = $request->query('categoria_id')) {
             $query->where('itens.categoria_id', (int) $categoria);

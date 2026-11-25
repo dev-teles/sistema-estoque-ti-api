@@ -20,7 +20,8 @@ class CatalogoController extends Controller
             $query->withTrashed();
         }
         if ($busca = $request->query('search')) {
-            $query->where('nome', 'like', $this->termoLike((string) $busca));
+            $like = $this->termoLike((string) $busca);
+            $query->where(fn ($q) => $q->where('nome', 'like', $like)->orWhere('numero_serie', 'like', $like));
         }
         if ($categoria = $request->query('categoria_id')) {
             $query->where('categoria_id', (int) $categoria);
@@ -76,6 +77,7 @@ class CatalogoController extends Controller
 
         $d = $request->validate([
             'nome' => [$req, 'string', 'max:150'],
+            'numero_serie' => ['nullable', 'digits:4'],
             'descricao' => ['nullable', 'string', 'max:255'],
             'categoria_id' => [$req, $this->existe('categorias')],
             'unidade_medida' => ['sometimes', 'string', 'max:20'],

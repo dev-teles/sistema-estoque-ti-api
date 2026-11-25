@@ -149,8 +149,17 @@ class EstoqueTest extends TestCase
             ->assertForbidden();
 
         $this->actingAs($gestor, 'jwt');
-        $this->postJson('/api/catalogo', ['nome' => 'Teclado ABNT2', 'categoria_id' => $this->categoria->id, 'quantidade_minima' => 1, 'lead_time' => 3])
-            ->assertCreated()->assertJsonPath('data.lead_time_dias', 3)->assertJsonPath('data.saldo_fisico', 0);
+        $this->postJson('/api/catalogo', ['nome' => 'Teclado ABNT2', 'numero_serie' => '2136', 'categoria_id' => $this->categoria->id, 'quantidade_minima' => 1, 'lead_time' => 3])
+            ->assertCreated()
+            ->assertJsonPath('data.numero_serie', '2136')
+            ->assertJsonPath('data.lead_time_dias', 3)
+            ->assertJsonPath('data.saldo_fisico', 0);
+
+        $this->postJson('/api/catalogo', ['nome' => 'Inválido', 'numero_serie' => '12345', 'categoria_id' => $this->categoria->id, 'quantidade_minima' => 1])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['numero_serie']);
+
+        $this->getJson('/api/estoque?search=2136')->assertOk()->assertJsonPath('data.0.item.numero_serie', '2136');
     }
 
     public function test_auditoria_bloqueia_saidas_e_gera_ajustes(): void
